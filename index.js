@@ -65,18 +65,35 @@ app.post('/students/login', async (req, res) => {
 app.get('/students/search', async (req, res) => {
   const { studentId } = req.query;
 
+  // Add validation and cleaning
   if (!studentId) {
-    return res.status(400).send('Student ID is required');
+    return res.status(400).json({ error: 'Student ID is required' });
   }
 
+  // Clean input: trim whitespace and remove special characters
+  const cleanStudentId = studentId.toString().trim().replace(/[^\w-]/g, '');
+
   try {
-    // Case-insensitive search
-    const student = await Student.findOne({ studentId: { $regex: new RegExp(studentId, 'i') } });
-    if (!student) return res.status(404).send('Student not found');
+    // Debugging: Log the search parameter
+    console.log(`Searching for student ID: "${cleanStudentId}"`);
+
+    // Exact match search with case insensitivity
+    const student = await Student.findOne({ 
+      studentId: { $regex: new RegExp(`^${cleanStudentId}$`, 'i') }
+    });
+
+    // Debugging: Log raw query results
+    console.log('Query result:', student);
+
+    if (!student) {
+      console.log(`No student found for ID: "${cleanStudentId}"`);
+      return res.status(404).json({ error: 'Student not found' });
+    }
 
     res.json(student);
   } catch (err) {
-    res.status(500).send('Error searching student');
+    console.error('Search error:', err);
+    res.status(500).json({ error: 'Server error during search' });
   }
 });
 

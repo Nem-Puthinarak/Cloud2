@@ -45,22 +45,83 @@ app.post('/students/register', async (req, res) => {
 
 // 2. Student Login (POST)
 app.post('/students/login', async (req, res) => {
-  const { studentId, password } = req.body;
+  const { studentId: rawStudentId, password: rawPassword } = req.body;
 
   try {
-    const student = await Student.findOne({ studentId });
-    if (!student) return res.status(401).send('Invalid credentials');
+    // 1. Input Validation and Sanitization
+    const studentId = String(rawStudentId).trim();
+    const password = String(rawPassword).trim();
 
-    const isMatch = await bcrypt.compare(password, student.password);
-    if (!isMatch) return res.status(401).send('Invalid credentials');
+    if (!studentId || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "Student ID and password are required"
+      });
+    }
 
-    const token = jwt.sign({ studentId: student.studentId }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ message: 'Login success', token });
+    // 2. Student Lookup with Detailed Logging
+    console.log(`[LOGIN ATTEMPT] Student ID: ${studentId}`);
+    const student = await Student.findOne({ studentId }).select('+password');
+
+    if (!student) {
+      console.log(`[LOGIN FAIL] No student found for ID: ${studentId}`);
+      return res.status(401).json({
+        success: false,
+        error: "Invalid credentials"
+      });
+    }
+
+    // 3. Password Verification with Bcrypt
+    console.log(`[DEBUG] Comparing password for: ${studentId}`);
+    const isMatch = await bcrypt.compare(password, student.password)
+      .catch(err => {
+        console.error(`[BCRYPT ERROR] ${err.message}`);
+        throw new Error('Password comparison failed');
+      });
+
+    if (!isMatch) {
+      console.log(`[LOGIN FAIL] Password mismatch for: ${studentId}`);
+      return res.status(401).json({
+        success: false,
+        error: "Invalid credentials"
+      });
+    }
+
+    // 4. JWT Token Generation
+    const tokenPayload = {
+      studentId: student.studentId,
+      role: 'student'
+    };
+
+    const token = jwt.sign(
+      tokenPayload,
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // 5. Secure Response
+    console.log(`[LOGIN SUCCESS] ${studentId}`);
+    res.json({
+      success: true,
+      message: 'Authentication successful',
+      token,
+      student: {
+        studentId: student.studentId,
+        name: student.name,
+        email: student.email
+      }
+    });
+
   } catch (err) {
-    res.status(500).send('Error logging in');
+    console.error(`[LOGIN ERROR] ${err.message}`);
+    res.status(500).json({
+      success: false,
+      error: process.env.NODE_ENV === 'development' 
+        ? err.message 
+        : 'Server error during authentication'
+    });
   }
 });
-
 // 3. Student Search (GET)
 app.get('/students/search', async (req, res) => {
   const { studentId } = req.query;

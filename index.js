@@ -65,8 +65,13 @@ app.post('/students/login', async (req, res) => {
 app.get('/students/search', async (req, res) => {
   const { studentId } = req.query;
 
+  if (!studentId) {
+    return res.status(400).send('Student ID is required');
+  }
+
   try {
-    const student = await Student.findOne({ studentId });
+    // Case-insensitive search
+    const student = await Student.findOne({ studentId: { $regex: new RegExp(studentId, 'i') } });
     if (!student) return res.status(404).send('Student not found');
 
     res.json(student);
@@ -74,6 +79,7 @@ app.get('/students/search', async (req, res) => {
     res.status(500).send('Error searching student');
   }
 });
+
 
 // 4. Student Profile Update (PUT)
 app.put('/students/update', async (req, res) => {

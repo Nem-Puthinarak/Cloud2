@@ -41,6 +41,12 @@ app.post('/students/register', async (req, res) => {
   } catch (err) {
     res.status(500).send('Error registering student');
   }
+  
+const savedStudent = await newStudent.save();
+console.log('Registered Student:', {
+  studentId: savedStudent.studentId,
+  passwordHash: savedStudent.password
+});
 });
 
 // 2. Student Login (POST)
